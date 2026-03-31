@@ -115,7 +115,7 @@ func ParsePosixTZ(s string) (*PosixTZ, error) {
 	}
 	rest = rest[1:]
 
-	p.End, rest, err = parseTZRule(rest)
+	p.End, _, err = parseTZRule(rest)
 	if err != nil {
 		return nil, err
 	}
