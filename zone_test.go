@@ -152,6 +152,85 @@ func TestLocationRoundTrip(t *testing.T) {
 	}
 }
 
+func TestTransitionsForRange(t *testing.T) {
+	z, err := Load("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Get transitions for 2024 — should have 2 (DST start + end),
+	// generated from the POSIX extend rule since stored transitions
+	// typically stop around 2007.
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	trans := z.TransitionsForRange(start, end)
+
+	if len(trans) != 2 {
+		t.Fatalf("TransitionsForRange(2024) len = %d, want 2", len(trans))
+	}
+
+	types := z.Types()
+
+	// First transition: std -> DST (March)
+	t0 := trans[0]
+	if types[t0.Type].Abbrev != "EDT" {
+		t.Errorf("first transition type = %q, want EDT", types[t0.Type].Abbrev)
+	}
+	t0Time := time.Unix(t0.When, 0).UTC()
+	if t0Time.Month() != time.March {
+		t.Errorf("DST start month = %v, want March", t0Time.Month())
+	}
+
+	// Second transition: DST -> std (November)
+	t1 := trans[1]
+	if types[t1.Type].Abbrev != "EST" {
+		t.Errorf("second transition type = %q, want EST", types[t1.Type].Abbrev)
+	}
+	t1Time := time.Unix(t1.When, 0).UTC()
+	if t1Time.Month() != time.November {
+		t.Errorf("DST end month = %v, want November", t1Time.Month())
+	}
+}
+
+func TestTransitionsForRangeMultiYear(t *testing.T) {
+	z, err := Load("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
+	trans := z.TransitionsForRange(start, end)
+
+	// 3 years * 2 transitions = 6
+	if len(trans) != 6 {
+		t.Fatalf("TransitionsForRange(2024-2026) len = %d, want 6", len(trans))
+	}
+
+	// Verify chronological order.
+	for i := 1; i < len(trans); i++ {
+		if trans[i].When <= trans[i-1].When {
+			t.Errorf("transition %d (when=%d) not after %d (when=%d)",
+				i, trans[i].When, i-1, trans[i-1].When)
+		}
+	}
+}
+
+func TestTransitionsForRangeNoDST(t *testing.T) {
+	z, err := Load("Asia/Tokyo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	trans := z.TransitionsForRange(start, end)
+
+	if len(trans) != 0 {
+		t.Errorf("TransitionsForRange for Asia/Tokyo (no DST) len = %d, want 0", len(trans))
+	}
+}
+
 func TestLoadCached(t *testing.T) {
 	z1, err := Load("Europe/London")
 	if err != nil {

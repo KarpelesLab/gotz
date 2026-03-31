@@ -177,6 +177,87 @@ func (z *Zone) ExtendRaw() string { return z.extendRaw }
 // String returns the timezone name.
 func (z *Zone) String() string { return z.name }
 
+// TransitionsForRange returns all transitions in the half-open interval [start, end),
+// combining stored transitions from the TZif file with dynamically generated
+// ones from the POSIX TZ extend rule.
+func (z *Zone) TransitionsForRange(start, end time.Time) []Transition {
+	startUnix := start.Unix()
+	endUnix := end.Unix()
+	var out []Transition
+
+	// Collect stored transitions in range.
+	for _, t := range z.transitions {
+		if t.When >= endUnix {
+			break
+		}
+		if t.When >= startUnix {
+			out = append(out, t)
+		}
+	}
+
+	// Generate transitions from the POSIX extend rule.
+	if z.extend == nil || !z.extend.HasDST() {
+		return out
+	}
+
+	// Determine last stored transition time.
+	var lastStored int64
+	if len(z.transitions) > 0 {
+		lastStored = z.transitions[len(z.transitions)-1].When
+	}
+
+	// Find the type indices for std and DST in z.types, or append synthetic ones.
+	stdIdx := z.findOrAddType(ZoneType{Abbrev: z.extend.StdAbbrev, Offset: z.extend.StdOffset, IsDST: false})
+	dstIdx := z.findOrAddType(ZoneType{Abbrev: z.extend.DSTAbbrev, Offset: z.extend.DSTOffset, IsDST: true})
+
+	startYear := start.Year()
+	endYear := end.Year()
+
+	for year := startYear; year <= endYear; year++ {
+		dstStart, dstEnd, ok := z.extend.TransitionsForYear(year)
+		if !ok {
+			continue
+		}
+		// DST start: std -> dst
+		if dstStart >= startUnix && dstStart < endUnix && dstStart > lastStored {
+			out = append(out, Transition{When: dstStart, Type: dstIdx})
+		}
+		// DST end: dst -> std
+		if dstEnd >= startUnix && dstEnd < endUnix && dstEnd > lastStored {
+			out = append(out, Transition{When: dstEnd, Type: stdIdx})
+		}
+	}
+
+	// Sort by timestamp (stored + generated may interleave for boundary years).
+	sortTransitions(out)
+	return out
+}
+
+// findOrAddType returns the index of a matching type in z.types,
+// or appends it and returns the new index.
+func (z *Zone) findOrAddType(zt ZoneType) int {
+	for i, t := range z.types {
+		if t.Abbrev == zt.Abbrev && t.Offset == zt.Offset && t.IsDST == zt.IsDST {
+			return i
+		}
+	}
+	z.types = append(z.types, zt)
+	return len(z.types) - 1
+}
+
+func sortTransitions(ts []Transition) {
+	// Simple insertion sort — transitions are nearly sorted already.
+	for i := 1; i < len(ts); i++ {
+		t := ts[i]
+		j := i
+		for j > 0 && ts[j-1].When > t.When {
+			ts[j] = ts[j-1]
+			j--
+		}
+		ts[j] = t
+	}
+}
+
 // Lookup returns the zone type in effect at the given time.
 // It searches transitions and falls back to the POSIX TZ rule
 // for times after the last transition.

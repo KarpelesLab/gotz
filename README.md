@@ -64,7 +64,8 @@ fmt.Println(time.Now().In(loc))
 | `Name() string` | IANA timezone name |
 | `Version() int` | TZif format version (1–4) |
 | `Types() []ZoneType` | Zone type definitions (abbreviation, offset, DST flag) |
-| `Transitions() []Transition` | Historical transition records |
+| `Transitions() []Transition` | Historical transition records (from TZif file only) |
+| `TransitionsForRange(start, end time.Time) []Transition` | All transitions in range, including generated from POSIX rule |
 | `LeapSeconds() []LeapSecond` | Leap second records |
 | `Extend() *PosixTZ` | Parsed POSIX TZ rule for future transitions |
 | `ExtendRaw() string` | Raw POSIX TZ footer string |
