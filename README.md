@@ -43,6 +43,12 @@ if rule := z.Extend(); rule != nil {
     fmt.Printf("DST ends:   %s\n", time.Unix(end, 0).UTC())
 }
 
+// Country and coordinates metadata
+if m := z.Meta(); m != nil {
+    fmt.Printf("Country: %s (%s)\n", m.Countries[0].Name, m.Countries[0].Code)
+    fmt.Printf("Location: %.4f, %.4f\n", m.Lat, m.Lon)
+}
+
 // Convert to *time.Location for use with the standard library
 loc, err := z.Location()
 fmt.Println(time.Now().In(loc))
@@ -71,6 +77,7 @@ fmt.Println(time.Now().In(loc))
 | `ExtendRaw() string` | Raw POSIX TZ footer string |
 | `Lookup(time.Time) ZoneType` | Zone type active at a given time |
 | `Location() (*time.Location, error)` | Convert to `*time.Location` |
+| `Meta() *ZoneMeta` | Country codes/names, lat/lon, commentary (from zone1970.tab) |
 
 ### PosixTZ
 

@@ -32,6 +32,9 @@ if ! make CFLAGS=-DSTD_INSPIRED AWK=awk TZDIR=zoneinfo PACKRATDATA=backzone PACK
 	exit 2
 fi
 
+# Copy metadata files into the zoneinfo directory for inclusion in the zip.
+cp zone1970.tab iso3166.tab zoneinfo/
+
 # Package compiled TZif files into a zip.
 cd zoneinfo
 ../mkzip ../../zoneinfo.zip
