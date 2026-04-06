@@ -16,6 +16,7 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -28,6 +29,9 @@ var (
 	zipOnce sync.Once
 	zipR    *zip.Reader
 	zipErr  error
+
+	lcOnce sync.Once
+	lcMap  map[string]string // lowercase name → canonical name
 )
 
 func getZipReader() (*zip.Reader, error) {
@@ -123,6 +127,46 @@ func readFromZip(name string) ([]byte, error) {
 		}
 	}
 	return nil, fmt.Errorf("not found in embedded data")
+}
+
+func buildLCMap() map[string]string {
+	r, err := getZipReader()
+	if err != nil {
+		return nil
+	}
+	m := make(map[string]string, len(r.File))
+	for _, f := range r.File {
+		m[strings.ToLower(f.Name)] = f.Name
+	}
+	return m
+}
+
+// Names returns all IANA timezone names available in the embedded database.
+func Names() []string {
+	r, err := getZipReader()
+	if err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(r.File))
+	for _, f := range r.File {
+		names = append(names, f.Name)
+	}
+	return names
+}
+
+// LoadInsensitive loads a timezone by name using case-insensitive matching.
+func LoadInsensitive(name string) (*Zone, error) {
+	// Try exact match first.
+	z, err := Load(name)
+	if err == nil {
+		return z, nil
+	}
+
+	lcOnce.Do(func() { lcMap = buildLCMap() })
+	if canonical, ok := lcMap[strings.ToLower(name)]; ok {
+		return Load(canonical)
+	}
+	return nil, fmt.Errorf("gotz: zone %q: not found", name)
 }
 
 func loadUTC() *Zone {
